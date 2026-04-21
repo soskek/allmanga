@@ -1,0 +1,45 @@
+name: Source adapter bug
+description: Report a broken manga source adapter or parsing issue.
+title: "[adapter] "
+labels: ["adapter"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping keep AllManga working. Please do not paste private cookies, paid-content URLs, account data, screenshots of manga pages, or secrets.
+  - type: input
+    id: site
+    attributes:
+      label: Site
+      description: Site id or name, such as jumpplus, comicdays, magapoke, ynjn.
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Public URL
+      description: Official public URL related to the issue.
+    validations:
+      required: false
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is missing, duplicated, misclassified, or dated incorrectly?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should AllManga show instead?
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Safe logs
+      description: Paste only sanitized logs. Remove tokens, cookies, and private URLs.
+      render: text
+    validations:
+      required: false

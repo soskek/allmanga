@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  background:
+    radial-gradient(circle at top left, rgba(211, 178, 141, 0.35), transparent 30%),
+    linear-gradient(180deg, #faf7f2 0%, #f4efe8 40%, #eef3f4 100%);
+}
+
+body {
+  @apply min-h-screen bg-transparent text-[12px] text-ink antialiased;
+}
+
+a {
+  @apply text-moss transition-colors hover:text-ember;
+}
+
+button,
+input,
+select,
+textarea {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember/40 focus-visible:ring-offset-2 focus-visible:ring-offset-sand;
+}
+
+.surface {
+  @apply rounded-md border border-ink/10 bg-white shadow-sm backdrop-blur;
+}
+
+.surface-muted {
+  @apply rounded-md border border-ink/10 bg-white backdrop-blur;
+}
+
+.page-shell {
+  @apply mx-auto w-full max-w-[1800px] px-1.5 pb-20 pt-1.5 sm:px-2 lg:px-3;
+}
+
+.form-input {
+  @apply h-9 w-full rounded-md border border-ink/10 bg-white px-2.5 text-[12px] text-ink shadow-sm placeholder:text-ink/35;
+}
+
+.form-select {
+  @apply h-9 w-full appearance-none rounded-md border border-ink/10 bg-white px-2.5 pr-8 text-[12px] text-ink shadow-sm;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(24, 33, 43, 0.68) 50%),
+    linear-gradient(135deg, rgba(24, 33, 43, 0.68) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) calc(50% - 1px),
+    calc(100% - 9px) calc(50% - 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.form-select option {
+  color: #18212b;
+  background: #ffffff;
+}

@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: allmanga
+      POSTGRES_USER: allmanga
+      POSTGRES_PASSWORD: allmanga
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U allmanga -d allmanga"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "${DATABASE_URL:-postgresql://allmanga:allmanga@postgres:5432/allmanga}"
+      APP_PASSWORD_HASH: "${APP_PASSWORD_HASH}"
+      APP_DEV_PASSWORD: "${APP_DEV_PASSWORD}"
+      SESSION_SECRET: "${SESSION_SECRET:-change-me}"
+      APP_TIMEZONE: "${APP_TIMEZONE:-Asia/Tokyo}"
+      DAY_BOUNDARY_HOUR: "${DAY_BOUNDARY_HOUR:-4}"
+      CRON_SCHEDULE: "${CRON_SCHEDULE:-*/30 * * * *}"
+      EMBEDDED_CRON_ENABLED: "${EMBEDDED_CRON_ENABLED:-false}"
+      BASE_URL: "${BASE_URL:-http://localhost:3000}"
+      APP_OWNER_EMAIL: "${APP_OWNER_EMAIL:-owner@allmanga.local}"
+      APP_OWNER_NAME: "${APP_OWNER_NAME:-Owner}"
+    command: >
+      sh -lc "npx prisma migrate deploy && npm run start"
+
+volumes:
+  postgres-data:

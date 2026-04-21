@@ -1,0 +1,88 @@
+name: Free Public Pages
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Daily around 05:10 JST. Static output is enough for the low-cost public demo.
+    - cron: "10 20 * * *"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: allmanga
+          POSTGRES_PASSWORD: allmanga
+          POSTGRES_DB: allmanga
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://allmanga:allmanga@localhost:5432/allmanga
+      SESSION_SECRET: public-static-ci-session-secret
+      APP_OWNER_EMAIL: owner@example.com
+      APP_TIMEZONE: Asia/Tokyo
+      IMAGE_POLICY: none
+      PUBLIC_STATIC_OUT_DIR: public-out
+      PREVIEW_BACKFILL_LIMIT: "0"
+      SOURCE_FETCH_TIMEOUT_MS: "12000"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Apply database migrations
+        run: npx prisma migrate deploy
+
+      - name: Sync manga metadata
+        run: npm run sync:once
+
+      - name: Export public-safe static site
+        run: npm run export:public-static
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public-out
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
