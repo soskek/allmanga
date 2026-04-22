@@ -140,6 +140,53 @@ describe("shared home snapshot", () => {
     expect(snapshot.discover[1]?.publishedAt).toBeNull();
   });
 
+  it("sorts discover items by official dates before undated catalogue fallbacks", async () => {
+    releases.push(
+      makeDiscoverRelease("old-official", "古い公式日付の読切", "2026-04-17T22:00:00+09:00"),
+      makeDiscoverRelease("fallback-newer", "新しい日付なしカタログ読切", null, {
+        contentKind: "work",
+        sourceType: "category_list",
+        firstSeenAt: new Date("2026-04-18T09:00:00+09:00")
+      }),
+      makeDiscoverRelease("new-official", "新しい公式日付の読切", "2026-04-18T20:00:00+09:00")
+    );
+
+    const { rebuildSharedHomeSnapshot } = await import("@/lib/home-snapshot");
+    const snapshot = await rebuildSharedHomeSnapshot();
+
+    expect(snapshot.discover.map((item) => item.title)).toEqual([
+      "新しい公式日付の読切",
+      "古い公式日付の読切",
+      "新しい日付なしカタログ読切"
+    ]);
+  });
+
+  it("balances discover items across sites before applying the display limit", async () => {
+    for (let index = 0; index < 130; index += 1) {
+      releases.push(
+        makeDiscoverRelease(`jump-${index}`, `ジャンプ読切${index}`, null, {
+          siteId: "jumpplus",
+          canonicalUrl: `https://shonenjumpplus.com/episode/jump-${index}`
+        })
+      );
+    }
+    for (let index = 0; index < 3; index += 1) {
+      releases.push(
+        makeDiscoverRelease(`maga-${index}`, `マガポケ読切${index}`, null, {
+          siteId: "magapoke",
+          canonicalUrl: `https://pocket.shonenmagazine.com/episode/maga-${index}`
+        })
+      );
+    }
+
+    const { rebuildSharedHomeSnapshot } = await import("@/lib/home-snapshot");
+    const snapshot = await rebuildSharedHomeSnapshot();
+
+    expect(snapshot.discover).toHaveLength(100);
+    expect(snapshot.discover.filter((item) => item.siteId === "magapoke")).toHaveLength(3);
+    expect(new Set(snapshot.discover.map((item) => item.siteId))).toEqual(new Set(["jumpplus", "magapoke"]));
+  });
+
   it("rebuilds a cached snapshot when a newer sync has finished", async () => {
     appSettings.set(
       "sharedHomeSnapshotV3",
@@ -231,6 +278,9 @@ function matchesWhere(release: ReleaseRecord, where: any): boolean {
     return false;
   }
   if (where.contentKind && !matchesScalar(release.contentKind, where.contentKind)) {
+    return false;
+  }
+  if (where.siteId && !matchesScalar(release.siteId, where.siteId)) {
     return false;
   }
   if (Object.prototype.hasOwnProperty.call(where, "publishedAt") && !matchesDate(release.publishedAt, where.publishedAt)) {

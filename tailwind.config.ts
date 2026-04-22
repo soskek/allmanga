@@ -1,5 +1,6 @@
 import type { Config } from "tailwindcss";
 import forms from "@tailwindcss/forms";
+import { designColors, extendedGridTemplateColumns, fontFamilySans } from "./lib/design-tokens";
 
 const config: Config = {
   content: [
@@ -10,15 +11,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#101316",
-        sand: "#f4efe8",
-        clay: "#d3b28d",
-        moss: "#5f6d53",
-        ember: "#b94d2f",
-        sky: "#d9e8ee"
+        ink: designColors.ink,
+        sand: designColors.sand,
+        clay: designColors.clay,
+        moss: designColors.moss,
+        ember: designColors.ember,
+        sky: designColors.sky
       },
       fontFamily: {
-        sans: ["'Noto Sans JP'", "system-ui", "sans-serif"]
+        sans: [...fontFamilySans]
+      },
+      gridTemplateColumns: {
+        ...extendedGridTemplateColumns
       },
       boxShadow: {
         card: "0 20px 40px rgba(16, 19, 22, 0.08)"

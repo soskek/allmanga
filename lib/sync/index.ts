@@ -37,7 +37,14 @@ export async function ensureSitesSeeded() {
 export async function runAllEnabledSyncs() {
   await ensureSitesSeeded();
   const enabledSites = await prisma.site.findMany({ where: { enabled: true } });
-  const results = await Promise.allSettled(enabledSites.map((site) => runSiteSync(site.id, { skipSharedHomeRefresh: true })));
+  const results = await Promise.allSettled(
+    enabledSites.map((site) =>
+      runSiteSync(site.id, { skipSharedHomeRefresh: true }).then((value) => ({
+        siteId: site.id,
+        ...value
+      }))
+    )
+  );
   await rebuildSharedHomeSnapshot();
   return results;
 }

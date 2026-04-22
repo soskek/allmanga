@@ -1,25 +1,16 @@
 import type { AppSettings } from "@/lib/settings";
+import { metadataGridTailwindClassByDensity, tileGridTailwindClassByDensity, type TileDensity } from "@/lib/design-tokens";
+
+function normalizeDensity(tileDensity: AppSettings["tileDensity"]): TileDensity {
+  return tileDensity === "denser" || tileDensity === "roomy" ? tileDensity : "default";
+}
 
 export function getTileGridClass(tileDensity: AppSettings["tileDensity"]) {
-  switch (tileDensity) {
-    case "denser":
-      return "grid grid-cols-5 gap-0.5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11 xl:grid-cols-13 2xl:grid-cols-15";
-    case "roomy":
-      return "grid grid-cols-3 gap-1 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12";
-    default:
-      return "grid grid-cols-4 gap-0.5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 2xl:grid-cols-14";
-  }
+  return tileGridTailwindClassByDensity[normalizeDensity(tileDensity)];
 }
 
 export function getMetadataTileGridClass(tileDensity: AppSettings["tileDensity"]) {
-  switch (tileDensity) {
-    case "denser":
-      return "grid grid-cols-3 gap-0.5 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 2xl:grid-cols-13";
-    case "roomy":
-      return "grid grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-9 2xl:grid-cols-11";
-    default:
-      return "grid grid-cols-3 gap-0.5 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12";
-  }
+  return metadataGridTailwindClassByDensity[normalizeDensity(tileDensity)];
 }
 
 export function getTileAspectClass(tileAspect: AppSettings["tileAspect"]) {

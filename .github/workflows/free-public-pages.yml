@@ -40,6 +40,7 @@ jobs:
       APP_TIMEZONE: Asia/Tokyo
       IMAGE_POLICY: none
       PUBLIC_STATIC_OUT_DIR: public-out
+      PUBLIC_STATIC_PREVIOUS_HOME_URL: https://soskek.github.io/allmanga/home.json
       PREVIEW_BACKFILL_LIMIT: "0"
       SOURCE_FETCH_TIMEOUT_MS: "12000"
       NEXT_TELEMETRY_DISABLED: "1"

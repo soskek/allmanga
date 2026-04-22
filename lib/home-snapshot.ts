@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { siteDisplayOrder } from "@/lib/domain";
 import type { SharedHomeDiscoverItem, SharedHomeFeedItem, SharedHomeSnapshot } from "@/lib/types";
 import { calendarDayStartDate } from "@/lib/state";
 import { getDefaultSettings } from "@/lib/settings";
@@ -17,6 +18,9 @@ import {
 } from "@/lib/utils";
 
 const SHARED_HOME_SNAPSHOT_KEY = "sharedHomeSnapshotV3";
+const DISCOVER_PER_SITE_QUERY_LIMIT = 120;
+const DISCOVER_OUTPUT_LIMIT = 100;
+const RECENT_MAIN_WINDOW_DAYS = 7;
 
 type SnapshotReleaseLike = {
   id: string;
@@ -91,9 +95,10 @@ export async function rebuildSharedHomeSnapshot() {
   const calendarDayStart = calendarDayStartDate(new Date(), settings.timezone);
   const nextCalendarDayStart = new Date(calendarDayStart.getTime() + 24 * 60 * 60 * 1000);
   const discoverWindowStart = new Date(calendarDayStart.getTime() - Math.max(settings.discoverWindowDays - 1, 0) * 24 * 60 * 60 * 1000);
-  const recentWindowStart = new Date(calendarDayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
+  const recentWindowStart = new Date(calendarDayStart.getTime() - RECENT_MAIN_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const discoverSiteIds = uniqueStrings([...settings.siteOrder, ...siteDisplayOrder]);
 
-  const [latestSyncRun, todayReleases, recentMainReleases, discoverReleases] = await Promise.all([
+  const [latestSyncRun, todayReleases, recentMainReleases, discoverReleaseGroups] = await Promise.all([
     prisma.syncRun.findFirst({
       orderBy: { startedAt: "desc" }
     }),
@@ -153,48 +158,55 @@ export async function rebuildSharedHomeSnapshot() {
       orderBy: [{ publishedAt: "desc" }, { firstSeenAt: "desc" }],
       take: 240
     }),
-    prisma.release.findMany({
-      where: {
-        semanticKind: { in: ["oneshot_discovery", "announcement"] },
-        OR: [
-          {
-            publishedAt: { gte: discoverWindowStart, lt: nextCalendarDayStart }
-          },
-          {
-            publishedAt: null,
-            semanticKind: "oneshot_discovery",
-            contentKind: "work",
-            sourceType: { in: ["oneshot_list", "category_list"] },
-            firstSeenAt: { gte: discoverWindowStart, lt: nextCalendarDayStart }
-          }
-        ]
-      },
-      include: {
-        work: {
-          include: {
-            releases: {
-              where: {
-                OR: [
-                  { extraJson: { contains: "thumbnailUrl" } },
-                  { extraJson: { contains: "workThumbnailUrl" } }
-                ]
+    Promise.all(
+      discoverSiteIds.map((siteId) =>
+        prisma.release.findMany({
+          where: {
+            siteId,
+            semanticKind: { in: ["oneshot_discovery", "announcement"] },
+            OR: [
+              {
+                publishedAt: { gte: discoverWindowStart, lt: nextCalendarDayStart }
               },
-              orderBy: [{ publishedAt: "desc" }, { firstSeenAt: "desc" }],
-              take: 1
+              {
+                publishedAt: null,
+                semanticKind: "oneshot_discovery",
+                contentKind: "work",
+                sourceType: { in: ["oneshot_list", "category_list"] },
+                firstSeenAt: { gte: discoverWindowStart, lt: nextCalendarDayStart }
+              }
+            ]
+          },
+          include: {
+            work: {
+              include: {
+                releases: {
+                  where: {
+                    OR: [
+                      { extraJson: { contains: "thumbnailUrl" } },
+                      { extraJson: { contains: "workThumbnailUrl" } }
+                    ]
+                  },
+                  orderBy: [{ publishedAt: "desc" }, { firstSeenAt: "desc" }],
+                  take: 1
+                }
+              }
             }
-          }
-        }
-      },
-      orderBy: [{ publishedAt: "desc" }, { firstSeenAt: "desc" }],
-      take: 50
-    })
+          },
+          orderBy: [{ publishedAt: "desc" }, { firstSeenAt: "desc" }],
+          take: DISCOVER_PER_SITE_QUERY_LIMIT
+        })
+      )
+    )
   ]);
+  const discoverReleases = discoverReleaseGroups.flat();
 
   const filteredToday = todayReleases.filter((item) => shouldDisplayTodayRelease(item, calendarDayStart, nextCalendarDayStart));
   const filteredRecent = recentMainReleases.filter((item) => shouldDisplayRecentMainRelease(item));
   const filteredDiscover = discoverReleases.filter((item) =>
     shouldDisplayDiscoverRelease(item, discoverWindowStart, nextCalendarDayStart)
   );
+  const balancedDiscover = balanceDiscoverReleasesBySite(filteredDiscover, settings.siteOrder, DISCOVER_OUTPUT_LIMIT);
 
   const snapshot: SharedHomeSnapshot = {
     timezone: settings.timezone,
@@ -215,7 +227,7 @@ export async function rebuildSharedHomeSnapshot() {
     ),
     todayFeed: collapseFeedReleasesByWork(filteredToday).map(toSharedFeedItem),
     recentMainFeed: collapseFeedReleasesByWork(filteredRecent).map(toSharedFeedItem),
-    discover: filteredDiscover.map(toSharedDiscoverItem)
+    discover: balancedDiscover.map(toSharedDiscoverItem)
   };
 
   await prisma.appSetting.upsert({
@@ -309,6 +321,78 @@ function collapseFeedReleasesByWork(items: SnapshotReleaseLike[]) {
   }
 
   return [...bestByKey.values()];
+}
+
+function balanceDiscoverReleasesBySite(items: SnapshotReleaseLike[], siteOrder: string[], limit: number) {
+  const sorted = [...items].sort((left, right) => {
+    const rightAt = resolveDiscoverDate(right)?.getTime() ?? 0;
+    const leftAt = resolveDiscoverDate(left)?.getTime() ?? 0;
+    if (rightAt !== leftAt) {
+      return rightAt - leftAt;
+    }
+    return right.firstSeenAt.getTime() - left.firstSeenAt.getTime();
+  });
+  const bySite = new Map<string, SnapshotReleaseLike[]>();
+  for (const item of sorted) {
+    const bucket = bySite.get(item.siteId) ?? [];
+    bucket.push(item);
+    bySite.set(item.siteId, bucket);
+  }
+
+  const orderedSites = uniqueStrings([
+    ...siteOrder,
+    ...siteDisplayOrder,
+    ...Array.from(bySite.keys())
+  ]).filter((siteId) => bySite.has(siteId));
+  const balanced: SnapshotReleaseLike[] = [];
+
+  while (balanced.length < limit) {
+    let added = false;
+    for (const siteId of orderedSites) {
+      const item = bySite.get(siteId)?.shift();
+      if (!item) {
+        continue;
+      }
+      balanced.push(item);
+      added = true;
+      if (balanced.length >= limit) {
+        break;
+      }
+    }
+    if (!added) {
+      break;
+    }
+  }
+
+  return sortDiscoverForDisplay(balanced);
+}
+
+function uniqueStrings(values: readonly string[]) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function sortDiscoverForDisplay(items: SnapshotReleaseLike[]) {
+  const balancedOrder = new Map(items.map((item, index) => [item.id, index]));
+  return [...items].sort((left, right) => {
+    if (Boolean(left.publishedAt) !== Boolean(right.publishedAt)) {
+      return left.publishedAt ? -1 : 1;
+    }
+    const rightAt = discoverDisplaySortTime(right);
+    const leftAt = discoverDisplaySortTime(left);
+    if (rightAt !== leftAt) {
+      return rightAt - leftAt;
+    }
+    // Same visible date: preserve the balanced pickup order so one large catalogue
+    // source does not monopolize the public preview.
+    return (balancedOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (balancedOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER);
+  });
+}
+
+function discoverDisplaySortTime(item: Pick<SnapshotReleaseLike, "publishedAt">) {
+  if (item.publishedAt) {
+    return item.publishedAt.getTime();
+  }
+  return 0;
 }
 
 function toSharedFeedItem(item: SnapshotReleaseLike): SharedHomeFeedItem {

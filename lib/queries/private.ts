@@ -6,6 +6,7 @@ import { calendarDayStartDate } from "@/lib/state";
 import { ensureSitesSeeded } from "@/lib/sync";
 import { aggregateWorkCards } from "@/lib/work-card";
 import type { HomeFeedWorkItem } from "@/lib/types";
+import { siteDisplayOrder } from "@/lib/domain";
 import {
   buildSearchableText,
   canonicalizeUrl,
@@ -465,11 +466,16 @@ export async function getDiscoverView() {
       site: true
     },
     orderBy: [{ publishedAt: "desc" }, { firstSeenAt: "desc" }],
-    take: 50
+    take: 200
   });
+  const visibleItems = items
+    .filter((item) => shouldDisplayDiscoverRelease(item, discoverWindowStart, nextCalendarDayStart))
+    .sort(sortDiscoverReleaseForDisplay)
+    .slice(0, 100);
+
   return filterBrokenDiscoverItems(
     await attachResolvedThumbnails(
-      items.filter((item) => shouldDisplayDiscoverRelease(item, discoverWindowStart, nextCalendarDayStart)),
+      visibleItems,
       { allowRemoteRefetch: false }
     )
   );
@@ -812,6 +818,32 @@ function resolveDiscoverDate(item: {
   }
 
   return null;
+}
+
+function discoverDisplaySortTime(item: { publishedAt: Date | null }) {
+  if (item.publishedAt) {
+    return item.publishedAt.getTime();
+  }
+  return 0;
+}
+
+function sortDiscoverReleaseForDisplay(
+  left: { publishedAt: Date | null; firstSeenAt: Date; siteId: string },
+  right: { publishedAt: Date | null; firstSeenAt: Date; siteId: string }
+) {
+  if (Boolean(left.publishedAt) !== Boolean(right.publishedAt)) {
+    return left.publishedAt ? -1 : 1;
+  }
+  const byDate = discoverDisplaySortTime(right) - discoverDisplaySortTime(left);
+  if (byDate !== 0) {
+    return byDate;
+  }
+  return siteOrderIndex(left.siteId) - siteOrderIndex(right.siteId);
+}
+
+function siteOrderIndex(siteId: string) {
+  const index = (siteDisplayOrder as readonly string[]).indexOf(siteId);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
 }
 
 function isPaidOnlyFeedRelease(item: { extraJson?: string | null }) {

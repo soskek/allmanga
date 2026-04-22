@@ -152,3 +152,16 @@ export const siteIconUrls: Record<string, string> = {
   younganimal: "https://cdn-public.comici.jp/content/default/favicon/20230224104233322F50C73D00FDA2BD6D78CE4082E70F008.png",
   comicwalker: "https://comic-walker.com/favicons/favicon.ico"
 };
+
+export const siteBaseUrls: Record<string, string> = {
+  jumpplus: "https://shonenjumpplus.com",
+  tonarinoyj: "https://tonarinoyj.jp",
+  comicdays: "https://comic-days.com",
+  sundaywebry: "https://www.sunday-webry.com",
+  magapoke: "https://pocket.shonenmagazine.com",
+  ynjn: "https://ynjn.jp",
+  comicwalker: "https://comic-walker.com",
+  younganimal: "https://younganimal.com",
+  mangaone: "https://manga-one.com",
+  yanmaga: "https://yanmaga.jp"
+};
